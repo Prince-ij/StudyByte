@@ -1,7 +1,7 @@
 import axios from "axios";
 
 // Default API base (can be overridden with VITE_API_URL or at runtime)
-const defaultBase = import.meta.env.VITE_API_URL || "http://localhost:3001";
+const defaultBase = "/";
 const api = axios.create({ baseURL: defaultBase });
 
 const courseBaseUrl = "api/courses";

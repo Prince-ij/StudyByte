@@ -4,6 +4,7 @@ import SignIn from "./components/Authentication/SignIn";
 import Dashboard from "./components/Dashboard/index";
 import CoursePage from "./components/Dashboard/CoursePage";
 import QuizPage from "./components/Dashboard/QuizPage";
+import FinalExam from "./components/Dashboard/FinalExam";
 import Notification from "./components/Notification";
 import { useState } from "react";
 
@@ -24,6 +25,10 @@ const App = () => {
           <>
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/course/:id" element={<CoursePage />} />
+            <Route
+              path="/course/:courseId/final-exam"
+              element={<FinalExam />}
+            />
             <Route
               path="/course/:courseId/chapter/:chapterId/quiz"
               element={<QuizPage />}

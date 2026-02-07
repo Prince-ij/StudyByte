@@ -1,5 +1,6 @@
 import express from "express";
 import multer from "multer";
+import mongoose from "mongoose";
 
 const courseRouter = express.Router();
 
@@ -24,83 +25,130 @@ courseRouter.post("/upload-pdf", upload.single("file"), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: "No file uploaded" });
 
-    // Extract PDF text
+    // Extract PDF text and summarize
     const pdfText = await extractPdfText(req.file.buffer, 50); // max 50 pages
     console.log("PDF text extracted, length:", pdfText.length);
-    console.log(pdfText);
 
-    // Summarize full PDF at once
     const summary = await summarizeText(pdfText);
 
-    //  Generate course metadata
+    // Generate everything in memory before touching the DB
     const courseMeta = await generateCourseMetadata(summary);
-    const course = await Course.create(courseMeta);
+    const chaptersData = await generateChapters(summary);
 
-    // Enroll User
-    let enrollment = null;
+    // generate quizzes for each chapter in memory
+    const chaptersQuizzes = [];
+    for (const ch of chaptersData) {
+      const quizData = await generateQuizForChapter(ch.content);
+      chaptersQuizzes.push(quizData.questions || []);
+    }
+
+    // generate final exam in memory
+    const examData = await generateFinalExam(summary);
+
+    // ensure authenticated before DB transaction
     if (!req.user) {
       return res
         .status(401)
         .json({ error: "Authentication required to enroll user" });
     }
 
-    const existingEnrollment = await Enrollment.findOne({
-      user: req.user._id,
-      course: course._id,
-    });
-    if (existingEnrollment) {
-      // move to in-progress if not already
-      if (existingEnrollment.status === "not started") {
-        existingEnrollment.status = "in progress";
-        await existingEnrollment.save();
-      }
-      enrollment = existingEnrollment;
-    } else {
-      enrollment = await Enrollment.create({
-        user: req.user._id,
-        course: course._id,
-        status: "in progress",
-        completed_chapters: [],
-        chapter_quiz_results: [],
-        final_exam_results: [],
+    // Start a mongoose session and perform all writes inside a transaction
+    const session = await mongoose.startSession();
+    let createdCourse = null;
+    let savedChapters = [];
+    let enrollment = null;
+
+    try {
+      await session.withTransaction(async () => {
+        // Create course
+        const courseDocs = await Course.create([courseMeta], { session });
+        createdCourse = courseDocs[0];
+
+        // Create chapters and quizzes
+        savedChapters = [];
+        for (let i = 0; i < chaptersData.length; i++) {
+          const ch = chaptersData[i];
+          const chapterDocs = await Chapter.create(
+            [
+              {
+                course: createdCourse._id,
+                chapter_number: ch.chapter_number,
+                title: ch.title,
+                content: ch.content,
+              },
+            ],
+            { session }
+          );
+
+          const chapterDoc = chapterDocs[0];
+          savedChapters.push(chapterDoc);
+
+          const quizQuestions = chaptersQuizzes[i] || [];
+          await Quiz.create(
+            [
+              {
+                chapter: chapterDoc._id,
+                questions: quizQuestions,
+              },
+            ],
+            { session }
+          );
+        }
+
+        // Create exam
+        await Exam.create(
+          [
+            {
+              course: createdCourse._id,
+              questions: examData.questions || [],
+            },
+          ],
+          { session }
+        );
+
+        // Create or update enrollment
+        const existingEnrollment = await Enrollment.findOne({
+          user: req.user._id,
+          course: createdCourse._id,
+        }).session(session);
+
+        if (existingEnrollment) {
+          if (existingEnrollment.status === "not started") {
+            existingEnrollment.status = "in progress";
+            await existingEnrollment.save({ session });
+          }
+          enrollment = existingEnrollment;
+        } else {
+          const enrollmentDocs = await Enrollment.create(
+            [
+              {
+                user: req.user._id,
+                course: createdCourse._id,
+                status: "in progress",
+                completed_chapters: [],
+                chapter_quiz_results: [],
+                final_exam_results: [],
+              },
+            ],
+            { session }
+          );
+          enrollment = enrollmentDocs[0];
+        }
       });
+
+      // If we reach here, transaction committed
+      res.json({
+        message: "Course generated successfully",
+        course: createdCourse,
+        chapters: savedChapters,
+        enrollment,
+      });
+    } catch (txErr) {
+      console.error("Transaction failed, aborting:", txErr);
+      res.status(500).json({ error: txErr.message || "Transaction failed" });
+    } finally {
+      session.endSession();
     }
-
-    //  Generate chapters from summary
-    const chaptersData = await generateChapters(summary);
-    const savedChapters = [];
-
-    for (const ch of chaptersData) {
-      const chapter = await Chapter.create({
-        course: course._id,
-        chapter_number: ch.chapter_number,
-        title: ch.title,
-        content: ch.content,
-      });
-
-      savedChapters.push(chapter);
-
-      // Generate quiz for chapter
-      const quizData = await generateQuizForChapter(ch.content);
-      await Quiz.create({
-        chapter: chapter._id,
-        questions: quizData.questions,
-      });
-    }
-
-    // Generate final exam
-    const examData = await generateFinalExam(summary);
-    await Exam.create({
-      course: course._id,
-      questions: examData.questions,
-    });
-
-    res.json({
-      message: "Course generated successfully",
-      course,
-      chapters: savedChapters,
-      enrollment,
-    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message || "Failed to generate course" });

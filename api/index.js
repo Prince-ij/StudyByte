@@ -26,16 +26,12 @@ app.use(
 );
 app.use(morgan("tiny"));
 
-// Serve frontend static files (if you build the frontend into api/dist)
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 app.use(express.static(path.join(__dirname, "dist")));
 
-// Fallback to index.html for client-side routing (but let API routes pass through)
 app.use((req, res, next) => {
-  // Only handle GET requests for client-side routes
   if (req.method !== "GET") return next();
-  // Let API routes pass through to their handlers
   if (req.path.startsWith("/api")) return next();
   res.sendFile(path.join(__dirname, "dist", "index.html"));
 });

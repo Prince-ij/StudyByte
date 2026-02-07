@@ -8,6 +8,7 @@ import middleware from "./utils/middleware.js";
 import morgan from "morgan";
 import path from "path";
 import { fileURLToPath } from "url";
+import fs from "fs";
 
 const app = express();
 app.use(cors());
@@ -28,14 +29,44 @@ app.use(morgan("tiny"));
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-// Serve built frontend from ../frontend/dist so asset requests resolve correctly
-app.use(express.static(path.join(__dirname, "..", "frontend", "dist")));
 
-app.use((req, res, next) => {
-  if (req.method !== "GET") return next();
-  if (req.path.startsWith("/api")) return next();
-  res.sendFile(path.join(__dirname, "..", "frontend", "dist", "index.html"));
-});
+// Try several candidate locations for the built frontend and pick the first that exists.
+const candidateDirs = [
+  path.join(__dirname, "..", "frontend", "dist"),
+  path.join(__dirname, "dist"),
+  path.join(__dirname, "..", "dist"),
+];
+let buildDir = candidateDirs.find((d) => fs.existsSync(d));
+if (!buildDir) {
+  console.warn(
+    "Frontend build not found in expected locations:",
+    candidateDirs
+  );
+  // fallback to the most likely location (keeps previous behavior)
+  buildDir = path.join(__dirname, "..", "frontend", "dist");
+}
+
+app.use(express.static(buildDir));
+
+const indexHtmlPath = path.join(buildDir, "index.html");
+if (fs.existsSync(indexHtmlPath)) {
+  app.use((req, res, next) => {
+    if (req.method !== "GET") return next();
+    if (req.path.startsWith("/api")) return next();
+    res.sendFile(indexHtmlPath);
+  });
+} else {
+  // If index.html is missing, return a friendly 404 instead of throwing ENOENT
+  app.use((req, res, next) => {
+    if (req.method !== "GET") return next();
+    if (req.path.startsWith("/api")) return next();
+    res
+      .status(404)
+      .send(
+        "Frontend build not found on server. Make sure you ran the frontend build and the files are deployed."
+      );
+  });
+}
 
 try {
   mongoose.connect(mongoUrl);

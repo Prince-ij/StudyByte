@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 
 const schema = mongoose.Schema({
   course: { type: mongoose.Schema.Types.ObjectId, ref: "Course" },
-  chapter_number: number,
+  chapter_number: Number,
   title: String,
   content: String,
 });

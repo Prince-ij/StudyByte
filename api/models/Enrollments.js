@@ -14,19 +14,12 @@ const schema = mongoose.Schema({
     {
       chapter: { type: mongoose.Schema.Types.ObjectId, ref: "Chapter" },
       score: Number,
-      attemps: {
-        type: Number,
-        default: 0,
-      },
+      passed: Boolean
     },
   ],
   final_exam_results: [
     {
       score: Number,
-      attempts: {
-        type: Number,
-        default: 0,
-      },
       passed: Boolean,
     },
   ],
@@ -40,4 +33,4 @@ schema.set("toJSON", {
   },
 });
 
-export default mongoose.schema("Enrollment", schema);
+export default mongoose.model("Enrollment", schema);

@@ -1,12 +1,12 @@
 import mongoose from "mongoose";
 
-const schema = mongoose.schema({
+const schema = mongoose.Schema({
   chapter: { type: mongoose.Schema.Types.ObjectId, ref: "Chapter" },
   questions: [
     {
       question: String,
       options: [String],
-      correct_index: number,
+      correct_index: Number,
     },
   ],
 });

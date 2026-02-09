@@ -97,11 +97,11 @@ const Dashboard = () => {
 
     try {
       const pages = await countPdfPages(f);
-      if (pages && pages > 50) {
+      if (pages && pages > 150) {
         dispatch(
           notify({
             type: "danger",
-            message: `PDF has ${pages} pages — must be under 50 pages`,
+            message: `PDF has ${pages} pages — must be under 600 pages`,
           })
         );
         e.target.value = null;
@@ -208,7 +208,7 @@ const Dashboard = () => {
           <div className="card shadow-sm p-3">
             <h5 className="mb-2">Upload a PDF</h5>
             <p className="text-muted small">
-              PDF must be under 50 pages. Maximum file size enforced by server.
+              PDF must be under 600 pages. Maximum file size enforced by server.
             </p>
 
             <div className="mb-2">

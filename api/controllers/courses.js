@@ -26,33 +26,28 @@ courseRouter.post("/upload-pdf", upload.single("file"), async (req, res) => {
     if (!req.file) return res.status(400).json({ error: "No file uploaded" });
 
     // Extract PDF text and summarize
-    const pdfText = await extractPdfText(req.file.buffer, 50); // max 50 pages
+    const pdfText = await extractPdfText(req.file.buffer, 600);
     console.log("PDF text extracted, length:", pdfText.length);
 
     const summary = await summarizeText(pdfText);
 
-    // Generate everything in memory before touching the DB
     const courseMeta = await generateCourseMetadata(summary);
     const chaptersData = await generateChapters(summary);
 
-    // generate quizzes for each chapter in memory
     const chaptersQuizzes = [];
     for (const ch of chaptersData) {
       const quizData = await generateQuizForChapter(ch.content);
       chaptersQuizzes.push(quizData.questions || []);
     }
 
-    // generate final exam in memory
     const examData = await generateFinalExam(summary);
 
-    // ensure authenticated before DB transaction
     if (!req.user) {
       return res
         .status(401)
         .json({ error: "Authentication required to enroll user" });
     }
 
-    // Start a mongoose session and perform all writes inside a transaction
     const session = await mongoose.startSession();
     let createdCourse = null;
     let savedChapters = [];

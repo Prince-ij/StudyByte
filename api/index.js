@@ -30,7 +30,6 @@ app.use(morgan("tiny"));
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Try several candidate locations for the built frontend and pick the first that exists.
 const candidateDirs = [
   path.join(__dirname, "..", "frontend", "dist"),
   path.join(__dirname, "dist"),

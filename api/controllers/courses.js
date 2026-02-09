@@ -26,7 +26,7 @@ courseRouter.post("/upload-pdf", upload.single("file"), async (req, res) => {
     if (!req.file) return res.status(400).json({ error: "No file uploaded" });
 
     // Extract PDF text and summarize
-    const pdfText = await extractPdfText(req.file.buffer, 600);
+    const pdfText = await extractPdfText(req.file.buffer, 150);
     console.log("PDF text extracted, length:", pdfText.length);
 
     const summary = await summarizeText(pdfText);

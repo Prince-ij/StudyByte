@@ -110,6 +110,7 @@ OUTPUT RULES:
 - Explain it Vividly in such a way that any average high school student can understand
 - Keep the chapter content detailed and explicit
 - Provide examples that reader can be able to relate with and understand
+- show solutions step by step when dealing with calculations in material, explain in detail without skipping steps
 
 MATERIAL:
 ${summaryText}

@@ -53,6 +53,8 @@ RULES:
 - Keep all important concepts, formulas, and definitions
 - Use simple English
 - Keep it structured and readable
+- When dealing with logic and calculations show step by step solutions to exercises, never omit any concept or try to summarize or brush over a topic.
+- Return a detailed text based on the text omitting nothing but increasing explanations.
 
 TEXT:
 ${pdfText.slice(0, 30000)}

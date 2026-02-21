@@ -13,6 +13,7 @@ const llm = new ChatOpenAI({
 });
 
 // ------------------- SCHEMAS -------------------
+
 const CourseMetadataSchema = z.object({
   title: z.string(),
   description: z.string(),
@@ -26,8 +27,6 @@ const ChapterSchema = z.object({
 
 const ChaptersSchema = z.array(ChapterSchema);
 
-// Wrap chapters array in an object because the LLM structured output JSON schema
-// must be a top-level object (OpenAI errors if top-level is an array).
 const ChaptersOutputSchema = z.object({
   chapters: ChaptersSchema,
 });
@@ -44,141 +43,167 @@ const QuizSchema = z.object({
 
 // ------------------- FUNCTIONS -------------------
 
-// Summarize PDF text
+// ===================== 1️⃣ FOUNDATION TRANSFORMATION =====================
 export async function summarizeText(pdfText) {
   const prompt = `
-Restructure the following text clearly for course content and chapter by chapter generation.
+You are a senior academic content architect and master teacher.
 
-RULES:
-- Keep all important concepts, formulas, and definitions
-- Use simple English
-- Keep it structured and readable
-- When dealing with logic and calculations show step by step solutions to exercises, never omit any concept or try to summarize or brush over a topic.
-- Return a detailed text based on the text omitting nothing but increasing explanations.
+Transform the material below into a COMPLETE, deeply structured teaching foundation.
+
+STRICT REQUIREMENTS:
+- Do NOT shorten or compress the material.
+- Preserve EVERY concept, formula, rule, and explanation.
+- Expand explanations where clarity is needed.
+- Organize ideas logically from foundational to advanced.
+- Use simple, precise English suitable for high school level.
+- When calculations appear, rewrite them step-by-step with zero skipped steps.
+- Clearly define all key terms.
+- Remove repetition but DO NOT remove content.
+- Improve pedagogy and clarity.
+
+STRUCTURE OUTPUT USING:
+1. Core Concepts
+2. Definitions
+3. Principles & Rules
+4. Step-by-Step Methods
+5. Worked Examples
+6. Common Mistakes
+7. Practice Thinking Prompts
 
 TEXT:
 ${pdfText.slice(0, 30000)}
 `;
 
   const res = await llm.invoke([{ role: "user", content: prompt }]);
-  console.log(
-    "\n========== AI SUMMARY ==========\n",
-    res.content,
-    "\n================================\n"
-  );
   return res.content;
 }
 
-// Generate course metadata
+// ===================== 2️⃣ COURSE METADATA =====================
 export async function generateCourseMetadata(summaryText) {
   const structuredLLM = llm.withStructuredOutput(CourseMetadataSchema);
 
-  const result = await structuredLLM.invoke(`
-Generate course metadata from this material.
+  return structuredLLM.invoke(`
+Generate premium course metadata from this material.
 
-RULES:
-- title should be short and clear
-- description should be concise, and compact in less than a paragraph.
+REQUIREMENTS:
+- Title: authoritative, clear, professional.
+- Description: 4–6 sentences.
+- Must explain:
+   • What student will master
+   • Skills gained
+   • Practical applications
+   • Difficulty level
+   • Step-by-step clarity approach
+- Avoid generic wording.
 
 MATERIAL:
 ${summaryText}
 `);
-
-  console.log(
-    "\n========== AI METADATA ==========\n",
-    JSON.stringify(result, null, 2),
-    "\n================================\n"
-  );
-  return result;
 }
 
-// Generate chapters in HTML format
+// ===================== 3️⃣ CHAPTER GENERATION =====================
 export async function generateChapters(summaryText) {
   const structuredLLM = llm.withStructuredOutput(ChaptersOutputSchema);
 
   const result = await structuredLLM.invoke(`
-You are an experienced teacher with decades of experience teaching high school students.
-Your Job is to take the whole material provided below and generate chapters from it.
-Appropriately generate enough number of chapters as needed making sure the chapter numbers
-begin with 1, 2 and so forth. make sure the content of the chapter is well explained and detailed such that any average
-student can comprehend what is being taught. chapters must be atleast 3 paragraphs.
+You are a world-class high school educator with 30+ years of curriculum design experience.
 
-OUTPUT RULES:
-- content MUST Always be html formatted and  returned as a string. Good formatting to enhance readability must be employed
-- include definitions, formulas, and small examples
-- make the content significantly much as needed to explain every part of the topic in detail
-- do not include unnecessary information that is not related to the chapter or way advanced than what is in the material
-- write in SIMPLE ENGLISH
-- Explain it Vividly in such a way that any average high school student can understand
-- Keep the chapter content detailed and explicit
-- Provide examples that reader can be able to relate with and understand
-- show solutions step by step when dealing with calculations in material, explain in detail without skipping steps
+Transform the material into a COMPLETE course divided into logically progressive chapters.
+
+CRITICAL REQUIREMENTS:
+
+1. Chapters must follow learning progression.
+2. Chapter numbers start at 1 and increase sequentially.
+3. Each chapter MUST contain:
+
+   - Clear introduction (why topic matters)
+   - Definitions section
+   - Deep concept explanation (simple language)
+   - Step-by-step worked examples
+   - Real-life analogies
+   - Common mistakes section
+   - Mini recap summary
+
+4. Teaching Rules:
+   - SIMPLE English
+   - Never skip reasoning steps
+   - Never assume prior knowledge unless covered
+   - Explain formulas before using them
+   - Break calculations line-by-line
+   - No advanced material beyond source
+
+OUTPUT FORMAT RULES:
+- content MUST be valid HTML string
+- Use:
+   <h2> for chapter title
+   <h3> for sections
+   <p> for explanations
+   <ul>/<ol> for steps
+   <strong> for definitions
+   <div class="example"> for worked examples
+   <div class="mistake"> for common mistakes
+- Minimum 4–6 structured sections per chapter
+- 800–1500 words per chapter (if material allows)
+- Clean formatting
+
+PEDAGOGICAL STANDARD:
+Teach as if student struggles.
+Clarity over sophistication.
+Depth over brevity.
 
 MATERIAL:
 ${summaryText}
 `);
 
-  console.log(
-    "\n========== AI CHAPTERS HTML OUTPUT ==========",
-    JSON.stringify(result, null, 2),
-    "\n===========================================\n"
-  );
-
-  // result is an object { chapters: [...] } - return the chapters array for backwards compatibility
   return result.chapters;
 }
 
-// Generate quiz for chapter (3 questions)
+// ===================== 4️⃣ QUIZ GENERATION =====================
 export async function generateQuizForChapter(chapterContent) {
   const structuredLLM = llm.withStructuredOutput(QuizSchema);
 
-  const result = await structuredLLM.invoke(`
-Create a quiz from this chapter.
+  return structuredLLM.invoke(`
+Create a high-quality conceptual quiz from this chapter.
 
-RULES:
+STRICT RULES:
 - Exactly 3 questions
-- Questions must come only from the chapter content
-- Each question exactly 4 options
+- Must test understanding, not memorization
+- Cover definition, application, reasoning
+- 4 short options
 - Only one correct answer
-- Options short strings
-- correct_index matches correct option
+- No trick questions
+- Do not copy text verbatim
+- Progressive difficulty
+- correct_index must match correct option (0–3)
 
 CHAPTER CONTENT:
 ${chapterContent}
 `);
-
-  console.log(
-    "\n========== AI QUIZ OUTPUT ==========\n",
-    JSON.stringify(result, null, 2),
-    "\n====================================\n"
-  );
-  return result;
 }
 
-// Generate final exam (10 questions)
+// ===================== 5️⃣ FINAL EXAM =====================
 export async function generateFinalExam(summaryText) {
   const structuredLLM = llm.withStructuredOutput(QuizSchema);
 
-  const result = await structuredLLM.invoke(`
-Create a final exam from the course material.
+  return structuredLLM.invoke(`
+Create a comprehensive final exam covering the entire course.
 
-RULES:
+STRICT RULES:
 - Exactly 10 questions
-- Each question exactly 4 options
+- 4 options each
 - Only one correct answer
-- correct_index 0-3
-- Cover all major topics
-- Do not repeat question ideas
-- Options short
+- correct_index 0–3
+- Cover ALL major topics evenly
+- Mix conceptual, computational, applied reasoning
+- No repeated question ideas
+- No trivial questions
+
+Difficulty progression:
+Q1–3: foundational
+Q4–7: intermediate
+Q8–10: advanced but fair
 
 MATERIAL:
 ${summaryText}
 `);
-
-  console.log(
-    "\n========== AI FINAL EXAM OUTPUT ==========\n",
-    JSON.stringify(result, null, 2),
-    "\n=========================================\n"
-  );
-  return result;
 }
